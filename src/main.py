@@ -2,6 +2,7 @@ import fastapi # api
 import uvicorn # server
 import os # env
 import random # id generation
+import json # json from config file
 
 from anthropic import Anthropic
 from fastapi import FastAPI, HTTPException
@@ -78,7 +79,9 @@ def get_usage(id:int):
 
 
 if __name__ == "__main__":
-
+        config = json.load('../config.json')
+        
+        
         if(os.environ.get("ANTHROPIC_API_KEY") is None): # if no key is psecified, return error
                 raise Exception('ANTHROPIC_API_KEY not found')
         uvicorn.run(app, host="0.0.0.0", port=8080) # run server on localhost port 8080

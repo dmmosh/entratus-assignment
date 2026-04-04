@@ -1,0 +1,43 @@
+{
+"intake":{
+        "context":"",
+        "behavioral":["If a user interrupts the current conversation with a new one that is with regards to stock prices, both callSpecialist and collectInterrupt can be called. ",
+                        "If a user says anything that is stricly NOT related to stock prices, ONLY call outOfContext."
+                        ],
+        "tools":[
+                {
+                        "name":"callSpecialist",
+                        "callOn": "If the gathered information from the user can be confidently answered with the information available, invoke this function.",
+                        "description":"Calls the specialist to evaluate on the information gathered.",
+                        "return":{
+                                "type":"string",
+                                "description":"A bulleted list of the key takeaways from the conversation context, e.g.'-User wants to find the net earnings of the AAPL ticker over the course of a week. -User wants to find the closing stock price of GOOGL."
+                        }
+                },
+                {
+                        "name": "outOfContext",
+                        "callOn": "The user says anything that is strictly NOT related to stock prices. ",
+                        "description": "Ignores the message and stays on the context."
+                },
+                {
+                        "name": "collectInterrupt",
+                        "callOn": "The user begins collection",
+
+                        "description": "Calls when the user has interrupted the current conversation with a new one that is with regards to stock prices."
+                }
+                
+        ]
+
+
+
+
+
+
+},
+        
+"specialist":{
+
+
+
+}
+}
