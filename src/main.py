@@ -3,4 +3,4 @@ import uvicorn
 import os
 
 print('docker works')
-print(os.environ.get("OPENAI_API_KEY"))
+print(os.environ.get("ANTHROPIC_API_KEY"))

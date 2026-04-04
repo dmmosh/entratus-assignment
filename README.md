@@ -17,3 +17,9 @@ If you have OPENAI_API_KEY as your environment variable:
 If you don't:
 
 `docker run -e OPENAI_API_KEY=<api key> entratus-assignment `
+
+## Endpoints:
+wip
+
+## Testing:
+wip
