@@ -12,11 +12,11 @@ The example is a stock tracker chatbot who can retrieve stock prices and some ba
 ## Running:
 If you have OPENAI_API_KEY as your environment variable:
 
-`docker run -e OPENAI_API_KEY entratus-assignment `
+`docker run -e OPENAI_API_KEY -p 8080:8080 entratus-assignment `
 
 If you don't:
 
-`docker run -e OPENAI_API_KEY=<api key> entratus-assignment `
+`docker run -e OPENAI_API_KEY=<api key> -p 8080:8080 entratus-assignment `
 
 ## Endpoints:
 wip

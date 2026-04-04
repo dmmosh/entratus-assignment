@@ -13,8 +13,8 @@ COPY . /app
 RUN pip install --no-cache-dir -r requirements.txt
 
 #default port for server
-ENV PORT=8000
-EXPOSE 8000
+ENV PORT=8080
+EXPOSE 8080
 
 #RUN npm install
 CMD ["python", "src/main.py"]
