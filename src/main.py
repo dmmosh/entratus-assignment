@@ -9,10 +9,10 @@ import yfinance
 
 from anthropic import Anthropic
 from fastapi import FastAPI, HTTPException
-
 app = FastAPI()
 conversations = {}
 config = None
+intake = None # intake agent
 
 bots_key = {} # double dict
 key_bots = {}
@@ -128,9 +128,10 @@ class conv:
 
         conversations[self.id] = self   # adds itself to the conversations hash 
         
-        self.tokens = {'intake':0, 'specialist':0} # token counts of agents
+        self.tokens = {key:0 for key in bots_key} # makes token counts for the bots 
         
-        self.history = [] # conv logs 
+        self.history_handled = [] # the handled pair history pair
+        self.history = [] # conv logs , formatted for claude use (so dont have to reformat)
         # each log will consist of who handled it
         # ex {'role':'user','content':'hello'}
         # ex {'role':'assistant','content':'hii'}
@@ -138,20 +139,29 @@ class conv:
         self.i = 0 # the index of the bottom of the queue (start of current gathering period)
         # when the conversation is handled by specialist, self.i is moved to len(self.logs) , or the index of the new conversation
     
-    def push_history(self,message:str):
+
+    def push_history(self,message:str,bot_id:int=-1): # pushes to history, user is -1 key
+        role = 'user'
+        if(bot_id>-1): # if it is a bot (bot id )
+            role = 'assistant'
+            self.history_handled.append(bot_id) # appends the bot id (to be retrieved)
+
         self.history.append({
-            'role':'user',
+            'role':role,
             'content':message
-        })
+        }) # appends msg to history
+
+
 
     def pop_history(self): # pops the most recent history in a way which claude api likes
-       out = []
-       
+       out = self.history[self.i:] # gets the queue
        self.i = len(self.history) # "pops" from the stack , sets i to new value
        return out # pops history in format the user will like
         
 class agent: # calls agent class
     def __init__(self, name):
+        self.name = name # stores name
+        self.key = bots_key[self.name]
         self.client = Anthropic() # inits anthropic class
         self.tools = read_config_tools(name) # reads tools
         self.system = read_config_system(name) # reads system      
@@ -164,6 +174,9 @@ class agent: # calls agent class
         #       self.model ,
         #       self.temp,
         #       self.tokens, sep='\n\n')
+
+
+
     
 
 
@@ -175,10 +188,8 @@ def new_conv():
     return {'id': conv_new.id} # returns conv's id, id and its conv is now in hash
 
 
-class msgItem(BaseModel):
+class msgItem(BaseModel): # api request base model
     message:str
-
-
 @app.post('/conversations/{id}/messages') # send user message, return agent resp
 def send_message(id: int, item:msgItem):
     if(item.message == ''):
@@ -187,8 +198,22 @@ def send_message(id: int, item:msgItem):
     if (id not in conversations): # not found
         raise HTTPException(status_code=404,detail="Conversation id not found.")
     
+    conversations[id].push_history(item.message) # push message to the history stack
+
+    req =  intake.client.messages.create(
+        model = intake.model,
+        max_tokens = intake.tokens,
+        temperature=intake.temp,
+        stream=False,
+        system=intake.system,
+        tools=intake.tools,
+        messages= conversations[id].history
+    )
     
-    return {"message":item.message}
+    conversations[id].push_history(req.content[0].text, bots_key['intake']) # push message to the history stack
+
+    
+    return {"message":req.content[0].text}
     #history = conversations[id].pop_history() # pops the history from stack
 
             
@@ -205,13 +230,13 @@ def conv_history(id:int):
             
     # check most recent element, if it's intaking, return collecting data
 
-    if(len(conversations[id].history)>0 and conversations[id].history[-1]['role'] == 'intake'):
+    if(len(conversations[id].history)>0 and key_bots[conversations[id].history_handled[-1]] == 'intake'): # if the most recent bot is intaking then its collecting data
         state = 'collecting data'
             
     history = []
     for i in range(0,len(conversations[id].history),2):
         history_curr = {'message':conversations[id].history[i]['content'], # every even entry is a user message
-                'handledBy':
+                'handledBy':key_bots[conversations[id].history_handled[i//2]], # uses the handled index and retrieves the bot responsible for handling it
                 'response':conversations[id].history[i+1]['content']
         }
         history.append(history_curr)
@@ -237,12 +262,14 @@ if __name__ == "__main__":
 
     i = 0
     for bot in config: # stores the keys 
-        if bot == 'shared':
+        if bot == 'shared': # skip shared container
             continue
         bots_key[bot] = i
         key_bots[i] = bot
+        i+=1
 
     intake = agent('intake')
+    
     
     
     if(os.environ.get("ANTHROPIC_API_KEY") is None): # if no key is psecified, return error
