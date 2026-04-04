@@ -1,8 +1,56 @@
 {
+"shared":[
+    {
+        "between":["intake","specialist"],
+        "model":"claude-opus-4-5",
+        "seriousness": 0.8,
+        "avgChars": 512,
+        "context":["You have the following information on the stock price of a given ticker for each interval within a period:",
+                        "interval length (the length of time the data is counted for), ",
+                        "open price (price at the beginning of each interval), ",
+                        "close price (price at the end of each interval), ",
+                        "high price (highest price at each interval), ",
+                        "and the low price (lowest price at each interval). " ,
+                    "With the information provided, you can derive stock price information, including but not limited to:",
+                        "Daily Range (High - Low) — How wide the day's price action was, ",
+                        "Price Change (Close - Previous Close) — How much it moved day to day, ",
+                        "Percent Change (Price Change / Previous Close × 100) — Same, but normalized, ",
+                        "Gap (Open - Previous Close) — Overnight jump or drop, ",
+                        "Body Size (|Close - Open|) — How decisive the session was, ",
+                        "Simple Moving Average (SMA) — Mean of Close over N days, ",
+                        "Average Volume — Mean of Volume over N days, ",
+                        "Average Daily Range — Mean of (High - Low) over N days, ",
+                        "Midpoint ((High + Low) / 2) — Center of the day's range, ",
+                        "Typical Price ((High + Low + Close) / 3), ",
+                        "Relative Volume (RVOL) — Today's Volume / Average Volume; tells you if today is unusually active, ",
+                        "Up/Down Volume — Was volume higher on up days or down days over a period?, ",
+                        "OBV (On-Balance Volume) — Running total: add volume on up days, subtract on down days, ",
+                        "Simple Directional Signals, ",
+                        "Higher High / Lower Low — Is the stock making new peaks or troughs?, ",
+                        "Close vs. Open — Bullish (Close > Open) or bearish (Close < Open) session, ",
+                        "Close vs. Midpoint — Did price close in the upper or lower half of its range?, ",
+                        "N-Day High / Low — Highest High or Lowest Low over the last N sessions, ",
+                        "etc."
+                ]
+    }
+    
+],
+
+
 "intake":{
-        "context":"",
-        "behavioral":["If a user interrupts the current conversation with a new one that is with regards to stock prices, both callSpecialist and collectInterrupt can be called. ",
-                        "If a user says anything that is stricly NOT related to stock prices, ONLY call outOfContext."
+        "context":["You are a stock analyst.",
+                "You are highly inclined to ask questions, question the user if unsure. ",
+                "Your role is to gather enough enough information to invoke callSpecialist. ",
+                "The user is REQUIRED to provide a period, or a length of time before the current time to track stock prices to. "
+                ],
+        "behavioral":[  "ONLY call callSpecialist when you are absolutely sure that a period is present and enough information is present to derive information from which you have available data for.",
+                        "If a user says anything that is stricly NOT related to stock prices, ONLY call outOfContext.",
+                        "If you believe you have enough information to answer the question, invoke callSpecialist.",
+                        "Never invoke callSpecialist until you have enough data to answer the question.",
+                        "If you do not have enough information to answer the question, ask the user.",
+                        "NEVER answer questions directly, it is NOT your role. Your role is to gather information from the user.",
+                        "NEVER assume a period without the user's explicit declaration.",
+                        "If the user does not provide a period, ask the user for a period."
                         ],
         "tools":[
                 {
@@ -12,7 +60,7 @@
                         "return":{
                                 "type":"string",
                                 "description":"A bulleted list of the key takeaways from the conversation context, e.g.'-User wants to find the net earnings of the AAPL ticker over the course of a week. -User wants to find the closing stock price of GOOGL."
-                        }
+                            }
                 },
                 {
                         "name": "outOfContext",
@@ -22,7 +70,6 @@
                 {
                         "name": "collectInterrupt",
                         "callOn": "The user begins collection",
-
                         "description": "Calls when the user has interrupted the current conversation with a new one that is with regards to stock prices."
                 }
                 
@@ -33,11 +80,6 @@
 
 
 
-},
-        
-"specialist":{
-
-
-
 }
+        
 }
