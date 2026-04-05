@@ -9,15 +9,20 @@ messages = [
     'Hello Claude I am interested in stock prices.',
     'AAPL Ticker',
     'Overall percent change',
-    'In the last week'
+    'In the last day'
+]
+messages2 =[
+    'I am interested in MSFT Ticker prices.',
+    'The closing prices',
+    'META Ticker closing prices over the past 5 trading days'
 ]
 
-messages2 = [
+messages3 = [
     'Hello Clause show me the AAPL Ticker percent price change in the last week.'
 ]
 
 
-for message in messages:
+for message in messages2:
     print()
     print('user:\t',message)
     print()

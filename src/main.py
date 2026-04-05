@@ -131,7 +131,6 @@ class conv:
         conversations[self.id] = self   # adds itself to the conversations hash 
         
         self.tokens = {key:0 for key in key_bots} # makes token counts for the bots 
-        print(self.tokens)
         self.history_handled = [] # the handled pair history pair
         self.history = [] # conv logs , formatted for claude use (so dont have to reformat)
         # each log will consist of who handled it
@@ -172,18 +171,18 @@ class agent: # calls agent class
         #       self.model ,
         #       self.temp,
         #       self.tokens, sep='\n\n')
-    def respond(self, id:int): # response wrapper
+    def respond(self, id:int, context:str=''): # response wrapper
         #note: the requests count is handled
         conversations[id].history_handled.append(self.key) # appends the bot id (to be retrieved)
-        conversations[id].tokens[self.key] +=1
+        conversations[id].tokens[self.key] +=1 # increments key of itself
 
         return  self.client.messages.create(
             model = self.model,
             max_tokens = self.tokens,
             temperature=self.temp,
-            system=self.system,
+            system=self.system + ' ' + context, # additional context
             tools=self.tools,
-            messages= conversations[id].history
+            messages= conversations[id].history[conversations[id].i:]
         )
 
 
@@ -208,25 +207,27 @@ def send_message(id: int, item:msgItem):
     #print(json.dumps(intake.tools, indent=4))
 
     conversations[id].push_history(item.message) # push message to the history stack
-    response =  intake.respond(id)
-    text_block = [b for b in response.content if b.type == "text"][0].text # gets the text block 
+    response =  intake.respond(id) # get response
 
+    tool_blocks = [b.name for b in response.content if b.type == "tool_use"] # gets the tool blocks
+    if 'collectInterrupt' in tool_blocks: # if an interrupt , pop history except most recent and rerun the response
+        conversations[id].pop_history(1) # pop history
+        response = intake.respond(id) # calls token again
+        tool_blocks = [b.name for b in response.content if b.type == "tool_use"] # gets the tool blocks
 
-    if response.stop_reason == "tool_use": #if a tool has been used 
-        for block in response.content: # iterate over blocks 
-            if(block.type == 'tool_use'): # if tool is used
-                if(block.name == 'collectInterrupt'): #if collectInterrupt is used,
-                    conversations[id].pop_history(1) # pops the history, leaves most recent (item.message) in history
-                    conversations[id].push_history(text_block, bots_key['intake']) # pushes the text block response
-                    return {"message":'collectInterrupt invoked'}
-                elif(block.name == 'callSpecialist'):
-                    conversations[id].push_history(text_block, bots_key['intake']) # pushes the text block response
-                    return {"message":'callSpecialist invoked'}
-    else: # if no tool used 
-        conversations[id].push_history(text_block, bots_key['intake']) # push bot response to the history stack
+    text_block = next((b.text for b in response.content if b.type == "text"), None)
 
+    specialist = next((b for b in response.content if b.type == "tool_use" and b.name == "callSpecialist"), None)
+
+    if specialist:
+       print(specialist)
+       text_block = 'specialist invoked'
+
+    print(response.content)
 
     
+    
+    conversations[id].push_history(text_block, bots_key['intake']) # pushes the text block response # DO TO DELETE
     return {"message":text_block}
     #history = conversations[id].pop_history() # pops the history from stack
 
