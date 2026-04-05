@@ -4,8 +4,10 @@ import os # env
 import random # id generation
 import json # json from config file
 from pydantic import BaseModel # base model for args
+from typing import Optional # static testing
 
-import yfinance
+
+import yfinance as yf # yahoo finance data
 
 from anthropic import Anthropic
 from fastapi import FastAPI, HTTPException
@@ -13,6 +15,7 @@ app = FastAPI()
 conversations = {}
 config = None
 intake = None # intake agent
+specialist = None
 
 bots_key = {} # double dict
 key_bots = {}
@@ -171,11 +174,8 @@ class agent: # calls agent class
         #       self.model ,
         #       self.temp,
         #       self.tokens, sep='\n\n')
-    def respond(self, id:int, context:str=''): # response wrapper
+    def respond(self, id:int, context:str='', static=False): # response wrapper
         #note: the requests count is handled
-        conversations[id].history_handled.append(self.key) # appends the bot id (to be retrieved)
-        conversations[id].tokens[self.key] +=1 # increments key of itself
-
         return  self.client.messages.create(
             model = self.model,
             max_tokens = self.tokens,
@@ -187,14 +187,28 @@ class agent: # calls agent class
 
 
 
-@app.post('/conversations') # start new conv, return conv id
-def new_conv():
-    conv_new = conv() 
-    return {'id': conv_new.id} # returns conv's id, id and its conv is now in hash
+# specialist
+# takes conversation id and json object  in form {"ticker": "META", "period": "5d"}
+def specialize(id:int, specialist):
+    data = yf.download(specialist['ticker'],
+                       period=specialist['period'], 
+                       interval="1h")
+    if data is None:
+        return ''
+
+    
+    # if data is None: # base case
+    #     return ''
+
+    return 'aaaa'
+
+
 
 
 class msgItem(BaseModel): # api request base model
-    message:str
+    message:str # message 
+    is_static: Optional[bool] = None # static testing
+    tools_static: Optional[list] = None # static
 @app.post('/conversations/{id}/messages') # send user message, return agent resp
 def send_message(id: int, item:msgItem):
     if(item.message == ''):
@@ -203,31 +217,76 @@ def send_message(id: int, item:msgItem):
     if (id not in conversations): # not found
         raise HTTPException(status_code=404,detail="Conversation id not found.")
     
+
     #print(intake.system)
     #print(json.dumps(intake.tools, indent=4))
 
-    conversations[id].push_history(item.message) # push message to the history stack
-    response =  intake.respond(id) # get response
 
-    tool_blocks = [b.name for b in response.content if b.type == "tool_use"] # gets the tool blocks
+    conversations[id].push_history(item.message) # push message to the history stack
+
+    response = None
+    content = None
+    tool_blocks = []
+
+
+    if(item.is_static): # for static testing
+        if(item.tools_static):
+            tool_blocks = item.tools_static
+    else:
+        response =  intake.respond(id) # get response
+        content = response.content
+        tool_blocks = [b.name for b in content if b.type == "tool_use"] # gets the tool blocks
+
+    conversations[id].tokens[intake.key] +=1 # increments key of intake
+
+
     if 'collectInterrupt' in tool_blocks: # if an interrupt , pop history except most recent and rerun the response
         conversations[id].pop_history(1) # pop history
-        response = intake.respond(id) # calls token again
-        tool_blocks = [b.name for b in response.content if b.type == "tool_use"] # gets the tool blocks
 
-    text_block = next((b.text for b in response.content if b.type == "text"), None)
+        if not item.is_static:
+            response = intake.respond(id) # calls token again
+            content = response.content
+            tool_blocks = [b.name for b in content if b.type == "tool_use"] # gets the tool blocks
 
-    specialist = next((b for b in response.content if b.type == "tool_use" and b.name == "callSpecialist"), None)
+        conversations[id].tokens[intake.key] +=1 # increments key of intake
+
+        
+    text_block = None
+    specialist = None
+    
+    if item.is_static:
+        text_block = 'Static test'
+
+        if(item.tools_static and 'callSpecialist' in item.tools_static):
+            specialist = '{"ticker": "META", "period": "5d"}'
+    else:
+        text_block = next((b.text for b in content if b.type == "text"), '')
+        specialist = next((b for b in content if b.type == "tool_use" and b.name == "callSpecialist"), None)
+
 
     if specialist:
-       print(specialist)
-       text_block = 'specialist invoked'
+        # PRE PROCESSOR (specified in config.json)
+        # specialist has args for yfinance
 
-    print(response.content)
+        if(item.is_static):
+            text_block = specialist
+        else:
+            text_block = specialist.input['returnVal']
+        
+        
+        text_block = specialize(id,json.loads(text_block)) # specializes, draws the data
+        if(text_block == ''): # yfinance is down
+            raise HTTPException(status_code=500,detail="Internal server error.")
 
-    
-    
+
+    conversations[id].history_handled.append(intake.key) # appends the bot id (to be retrieved)
+
+
     conversations[id].push_history(text_block, bots_key['intake']) # pushes the text block response # DO TO DELETE
+    #print(response.content)
+
+    
+    
     return {"message":text_block}
     #history = conversations[id].pop_history() # pops the history from stack
 
@@ -236,17 +295,23 @@ def send_message(id: int, item:msgItem):
             
             
 
+@app.post('/conversations') # start new conv, return conv id
+def new_conv():
+    conv_new = conv() 
+    return {'id': conv_new.id} # returns conv's id, id and its conv is now in hash
+
+
 @app.get("/conversations/{id}") # conv history
 def conv_history(id:int):
     if (id not in conversations): # not found
         raise HTTPException(status_code=404,detail="Conversation id not found.")
             
-    state =  'receiving new prompt' # gets the state of most recent conversation
+    state =  'collecting data' # gets the state of most recent conversation
             
     # check most recent element, if it's intaking, return collecting data
 
-    if(len(conversations[id].history)>0 and key_bots[conversations[id].history_handled[-1]] == 'intake'): # if the most recent bot is intaking then its collecting data
-        state = 'collecting data'
+    if(len(conversations[id].history_handled) == 0 or conversations[id].history_handled[-1] == bots_key['specialist']):
+        state = 'waiting on new conversation'
             
     history = []
     for i in range(0,len(conversations[id].history),2):
@@ -259,7 +324,6 @@ def conv_history(id:int):
     return {'state': state, # state, string
         'history':history # conv history, list
         }
-
 
 
 @app.get("/conversations/{id}/usage") # token usage 
@@ -284,6 +348,7 @@ if __name__ == "__main__":
         i+=1
 
     intake = agent('intake')
+    specialist = agent('specialist')
     
     
     

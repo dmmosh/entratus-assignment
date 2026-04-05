@@ -5,7 +5,7 @@
         "model":"claude-haiku-4-5",
         "seriousness": 0.8,
         "avgChars": 512,
-        "context":["You have the following information on the stock price of a given ticker for each interval within a period:",
+        "context":["You have the following information on the stock prices:",
                         "interval length (the length of time the data is counted for), ",
                         "open price (price at the beginning of each interval), ",
                         "close price (price at the end of each interval), ",
@@ -75,6 +75,19 @@
                 }
                 
         ]
+},
+
+"specialist":{
+        "context":["You are a stock analyst.",
+                "Your ONLY job is to use the data given to you to assess observations and make calculations based on the user's needs.",
+                "Follow the conversation to deduce the data you need to acquire from the stock market data."
+            ],  
+            "behavioral":[  
+                        "Be very analytical.",
+                        "Respond in an easy-to-understand language.",
+                        "Do NOT explain the formulas behind ANY math calculations.",
+                        "Do NOT elaborate beyond what is needed to answer the question."
+                        ]
 }
         
 }
