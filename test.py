@@ -2,7 +2,7 @@ import requests
 
 
 def send_msg(messages:list, extra_args:dict = {}):
-    response = requests.post("http://localhost:8080/conversations")
+    response = requests.post("http://0.0.0.0:8080/conversations")
     print(response.text)
     response = response.json()
     id = response['id']
@@ -11,7 +11,7 @@ def send_msg(messages:list, extra_args:dict = {}):
         print('USER:\t',message)
         print()
         response = requests.post(
-            f"http://localhost:8080/conversations/{id}/messages",
+            f"http://0.0.0.0:8080/conversations/{id}/messages",
             headers={
                 "content-type": "application/json"
             },
@@ -26,17 +26,17 @@ def send_msg(messages:list, extra_args:dict = {}):
     
     print()
 
-    response = requests.get(
-            f"http://localhost:8080/conversations/{id}",
-        )
-    print('CONV LOGS:\t',response.json())
+    # response = requests.get(
+    #         f"http://0.0.0.0:8080/conversations/{id}",
+    #     )
+    # print('CONV LOGS:\t',response.json())
 
-    print()
-    response = requests.get(
-            f"http://localhost:8080/conversations/{id}/usage",
-        )
-    print('USAGE:\t',response.json())
-    print()
+    # print()
+    # response = requests.get(
+    #         f"http://0.0.0.0:8080/conversations/{id}/usage",
+    #     )
+    # print('USAGE:\t',response.json())
+    # print()
 
     
 

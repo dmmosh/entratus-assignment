@@ -294,7 +294,7 @@ def send_message(id: int, item:msgItem):
         
         conversations[id].history_handled.append(specialist.key) # appends the bot id (to be retrieved)
         conversations[id].tokens[specialist.key] +=1 # increments key of specialist
-        
+
     else: # if specialist not required, still at intake
         conversations[id].history_handled.append(intake.key) # appends the bot id (to be retrieved)
 
@@ -320,6 +320,7 @@ def new_conv():
 
 @app.get("/conversations/{id}") # conv history
 def conv_history(id:int):
+
     if (id not in conversations): # not found
         raise HTTPException(status_code=404,detail="Conversation id not found.")
             
@@ -329,7 +330,12 @@ def conv_history(id:int):
 
     if(len(conversations[id].history_handled) == 0 or conversations[id].history_handled[-1] == bots_key['specialist']):
         state = 'waiting on new conversation'
-            
+
+    if(len(conversations[id].history) == 0):
+        return {
+            'state':state,
+            'history':{}
+        }
     history = []
     for i in range(0,len(conversations[id].history),2):
         history_curr = {'message':conversations[id].history[i]['content'], # every even entry is a user message
