@@ -65,7 +65,7 @@
                         "description":"Calls the specialist to evaluate on the information gathered.",
                         "return":{
                                 "type":"string",
-                                "description":"Always respond in JSON with the following structure: {\"ticker\": \"AAPL\", \"period\": \"1m\"} . The period is formatted for Python's yfinance library, so 1 month would be 1m, 5 days is 5d, 6 months is 6mo, etc."
+                                "description":"Always respond in JSON with the following structure: {\"ticker\": \"AAPL\", \"period\": \"1m\"} . The period is formatted for Python's yfinance library, so 1 month would be 1m, 5 days is 5d, 6 months is 6mo, etc. If a user asks for a specific period, always round up. For example, if a user asks for a period of 6 hours and 24 minutes, round up to 7 hours, 7h."
                             }
                 },
                 {
@@ -86,7 +86,9 @@
                         "Be very analytical.",
                         "Respond in an easy-to-understand language.",
                         "Do NOT explain the formulas behind ANY math calculations.",
-                        "Do NOT elaborate beyond what is needed to answer the question."
+                        "Do NOT elaborate beyond what is needed to answer the question.",
+                        "Do not mention the data you have available at your disposal.",
+                        "Make sure to mention numbers and statistics, do NOT give vague trends or statements."
                         ]
 }
         

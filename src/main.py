@@ -144,13 +144,9 @@ class conv:
         # when the conversation is handled by specialist, self.i is moved to len(self.logs) , or the index of the new conversation
     
 
-    def push_history(self,message:str,bot_id:int=-1): # pushes to history, user is -1 key
-        role = 'user'
-        if(bot_id>-1): # if it is a bot (bot id )
-            role = 'assistant'
-
+    def push_history(self,message:str,user:bool = True): # pushes to history, user is -1 key
         self.history.append({
-            'role':role,
+            'role':'user' if user else 'assistant',
             'content':message
         }) # appends msg to history
 
@@ -174,7 +170,7 @@ class agent: # calls agent class
         #       self.model ,
         #       self.temp,
         #       self.tokens, sep='\n\n')
-    def respond(self, id:int, context:str='', static=False): # response wrapper
+    def respond(self, id:int, context:str=''): # response wrapper
         #note: the requests count is handled
         return  self.client.messages.create(
             model = self.model,
@@ -189,21 +185,39 @@ class agent: # calls agent class
 
 # specialist
 # takes conversation id and json object  in form {"ticker": "META", "period": "5d"}
-def specialize(id:int, specialist):
-    data = yf.download(specialist['ticker'],
-                       period=specialist['period'], 
+def specialize(id:int, specializer, static:bool = False):
+    data = yf.download(specializer['ticker'],
+                       period=specializer['period'], 
                        interval="1h")
     if data is None:
         return ''
 
-    
+
+    text_block = ''
+
+    if(static):
+        text_block = 'The stock went up'
+    else:
+
+    # POST - PROCESSOR
+    # iterrates over rows , formats them nicely for the model to understand.
+        data_str = 'The data is as follows: '
+        for idx, row in data.iterrows(): 
+            time = idx.strftime("%b %d %Y %I:%M %p") 
+            data_str += (
+                f"For {time}: the Open is ${float(row['Open'].item()):.2f}, "
+                f"High is ${float(row['High'].item()):.2f}, $Low is {float(row['Low'].item()):.2f}, "
+                f"Close is ${float(row['Close'].item()):.2f}, $and Volume is {int(row['Volume'].item())}. "
+            )
+
+        response = specialist.respond(id,context = data_str)
+        text_block = next((b.text for b in response.content if b.type == "text"), '')
+
+
     # if data is None: # base case
     #     return ''
 
-    return 'aaaa'
-
-
-
+    return text_block
 
 class msgItem(BaseModel): # api request base model
     message:str # message 
@@ -237,8 +251,8 @@ def send_message(id: int, item:msgItem):
         content = response.content
         tool_blocks = [b.name for b in content if b.type == "tool_use"] # gets the tool blocks
 
-    conversations[id].tokens[intake.key] +=1 # increments key of intake
 
+    conversations[id].tokens[intake.key] +=1 # increments key of intake
 
     if 'collectInterrupt' in tool_blocks: # if an interrupt , pop history except most recent and rerun the response
         conversations[id].pop_history(1) # pop history
@@ -252,37 +266,40 @@ def send_message(id: int, item:msgItem):
 
         
     text_block = None
-    specialist = None
+    specializer = None
     
     if item.is_static:
         text_block = 'Static test'
 
         if(item.tools_static and 'callSpecialist' in item.tools_static):
-            specialist = '{"ticker": "META", "period": "5d"}'
+            specializer = '{"ticker": "META", "period": "5d"}'
     else:
         text_block = next((b.text for b in content if b.type == "text"), '')
-        specialist = next((b for b in content if b.type == "tool_use" and b.name == "callSpecialist"), None)
+        specializer = next((b for b in content if b.type == "tool_use" and b.name == "callSpecialist"), None)
 
 
-    if specialist:
+    if specializer: # if a specialist is requird
         # PRE PROCESSOR (specified in config.json)
         # specialist has args for yfinance
 
         if(item.is_static):
-            text_block = specialist
+            text_block = specializer
         else:
-            text_block = specialist.input['returnVal']
+            text_block = specializer.input['returnVal']
         
         
-        text_block = specialize(id,json.loads(text_block)) # specializes, draws the data
+        text_block = specialize(id, json.loads(text_block), item.is_static) # specializes, draws the data
         if(text_block == ''): # yfinance is down
             raise HTTPException(status_code=500,detail="Internal server error.")
+        
+        conversations[id].history_handled.append(specialist.key) # appends the bot id (to be retrieved)
+        conversations[id].tokens[specialist.key] +=1 # increments key of specialist
+        
+    else: # if specialist not required, still at intake
+        conversations[id].history_handled.append(intake.key) # appends the bot id (to be retrieved)
 
+    conversations[id].push_history(text_block, user=False) # pushes the text block response
 
-    conversations[id].history_handled.append(intake.key) # appends the bot id (to be retrieved)
-
-
-    conversations[id].push_history(text_block, bots_key['intake']) # pushes the text block response # DO TO DELETE
     #print(response.content)
 
     

@@ -20,23 +20,23 @@ def send_msg(messages:list, extra_args:dict = {}):
             } | extra_args
         )
         print(response.status_code, 'ASSISTANT:\t',end='')
-        print()
-
         if(response.status_code == 200):
             print(response.json()['message'])
+
     
-    # print()
+    print()
 
-    # response = requests.get(
-    #         f"http://localhost:8080/conversations/{id}",
-    #     )
-    # print('CONV LOGS:\t',response.json())
+    response = requests.get(
+            f"http://localhost:8080/conversations/{id}",
+        )
+    print('CONV LOGS:\t',response.json())
 
-    # print()
-    # response = requests.get(
-    #         f"http://localhost:8080/conversations/{id}/usage",
-    #     )
-    # print('USAGE:\t',response.json())
+    print()
+    response = requests.get(
+            f"http://localhost:8080/conversations/{id}/usage",
+        )
+    print('USAGE:\t',response.json())
+    print()
 
     
 
@@ -60,8 +60,16 @@ messages_error = {
     ''
 }
 
-#send_msg(messages_error)
-send_msg(messages_static, {'is_static':True, 'tools_static':['callSpecialist']})
+print('------------------------------------------------------')
+send_msg(messages_handoff1) # test case 1
+print('------------------------------------------------------')
+send_msg(messages_handoff2) # test case 2
+print('------------------------------------------------------')
+send_msg(messages_static, {'is_static':True, 'tools_static':['callSpecialist']}) # static test
+print('------------------------------------------------------')
+send_msg(messages_error) # error case 4
+print('------------------------------------------------------')
+
 
 
 
