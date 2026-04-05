@@ -32,14 +32,16 @@ def read_config_tools(entry_name:str): # reads config entry, returns dict which 
          tool_curr = {'name':tool['name'],
                   'description':tool['callOn']+' '+tool['description']
                   }
+         
+         tool_curr["input_schema"] = { # default input schema
+             'type':'object',
+             'properties':{}
+         }
+         
          if('return' in tool):
-             tool_curr["input_schema"] = {
-                 'type':'object',
-                 'properties':{
-                     'returnVal':tool['return']
-                 },
-                 'required':['returnVal']
-             }
+            tool_curr["input_schema"]['properties'] = {"returnVal":tool['return']}
+            tool_curr["input_schema"]['required'] =['returnVal']
+
          out.append(tool_curr)
         return out
     out = []
@@ -128,8 +130,8 @@ class conv:
 
         conversations[self.id] = self   # adds itself to the conversations hash 
         
-        self.tokens = {key:0 for key in bots_key} # makes token counts for the bots 
-        
+        self.tokens = {key:0 for key in key_bots} # makes token counts for the bots 
+        print(self.tokens)
         self.history_handled = [] # the handled pair history pair
         self.history = [] # conv logs , formatted for claude use (so dont have to reformat)
         # each log will consist of who handled it
@@ -144,7 +146,6 @@ class conv:
         role = 'user'
         if(bot_id>-1): # if it is a bot (bot id )
             role = 'assistant'
-            self.history_handled.append(bot_id) # appends the bot id (to be retrieved)
 
         self.history.append({
             'role':role,
@@ -152,11 +153,8 @@ class conv:
         }) # appends msg to history
 
 
-
-    def pop_history(self): # pops the most recent history in a way which claude api likes
-       out = self.history[self.i:] # gets the queue
-       self.i = len(self.history) # "pops" from the stack , sets i to new value
-       return out # pops history in format the user will like
+    def pop_history(self,i:int=0): # pops the most recent history in a way which claude api likes, leaves i items
+       self.i = len(self.history)-i # "pops" from the stack , sets i to new value
         
 class agent: # calls agent class
     def __init__(self, name):
@@ -174,13 +172,21 @@ class agent: # calls agent class
         #       self.model ,
         #       self.temp,
         #       self.tokens, sep='\n\n')
+    def respond(self, id:int): # response wrapper
+        #note: the requests count is handled
+        conversations[id].history_handled.append(self.key) # appends the bot id (to be retrieved)
+        conversations[id].tokens[self.key] +=1
+
+        return  self.client.messages.create(
+            model = self.model,
+            max_tokens = self.tokens,
+            temperature=self.temp,
+            system=self.system,
+            tools=self.tools,
+            messages= conversations[id].history
+        )
 
 
-
-    
-
-
-            
 
 @app.post('/conversations') # start new conv, return conv id
 def new_conv():
@@ -198,22 +204,30 @@ def send_message(id: int, item:msgItem):
     if (id not in conversations): # not found
         raise HTTPException(status_code=404,detail="Conversation id not found.")
     
+    #print(intake.system)
+    #print(json.dumps(intake.tools, indent=4))
+
     conversations[id].push_history(item.message) # push message to the history stack
+    response =  intake.respond(id)
+    text_block = [b for b in response.content if b.type == "text"][0].text # gets the text block 
 
-    req =  intake.client.messages.create(
-        model = intake.model,
-        max_tokens = intake.tokens,
-        temperature=intake.temp,
-        stream=False,
-        system=intake.system,
-        tools=intake.tools,
-        messages= conversations[id].history
-    )
-    
-    conversations[id].push_history(req.content[0].text, bots_key['intake']) # push message to the history stack
+
+    if response.stop_reason == "tool_use": #if a tool has been used 
+        for block in response.content: # iterate over blocks 
+            if(block.type == 'tool_use'): # if tool is used
+                if(block.name == 'collectInterrupt'): #if collectInterrupt is used,
+                    conversations[id].pop_history(1) # pops the history, leaves most recent (item.message) in history
+                    conversations[id].push_history(text_block, bots_key['intake']) # pushes the text block response
+                    return {"message":'collectInterrupt invoked'}
+                elif(block.name == 'callSpecialist'):
+                    conversations[id].push_history(text_block, bots_key['intake']) # pushes the text block response
+                    return {"message":'callSpecialist invoked'}
+    else: # if no tool used 
+        conversations[id].push_history(text_block, bots_key['intake']) # push bot response to the history stack
+
 
     
-    return {"message":req.content[0].text}
+    return {"message":text_block}
     #history = conversations[id].pop_history() # pops the history from stack
 
             
@@ -252,7 +266,7 @@ def get_usage(id:int):
     if (id not in conversations): # not found
         raise HTTPException(status_code=404,detail="Conversation id not found.")
             
-    return conversations[id].tokens # return the token usage (already a dict)
+    return {key_bots[key]:value for key,value in conversations[id].tokens.items()} # converts ids to key names
 
 
 
